@@ -1,0 +1,29 @@
+## Interface: 120100
+## Title: |cFFFF8DA1Boojie Character Sheet|r
+## Author: SilverRavyn
+## Notes: A lightweight skin and gear-status enhancement for Blizzard's character sheet.
+## Version: 0.5.29
+## Category: Quality of Life
+## IconTexture: Interface\AddOns\BoojieCharacterSheet\BoojieCharacterSheetIcon.png
+## SavedVariables: BoojieCharacterSheetDB
+## SavedVariablesPerCharacter: BoojieCharacterSheetCharDB
+## OptionalDeps: Pawn, WarbandNexus, MidnightHelper, ClassCodex, ElvUI, ElvUI_WindTools, SharedMedia_MyMedia
+
+Defaults.lua
+Media.lua
+Core.lua
+Locales/enUS.lua
+Modules/Fonts.lua
+Modules/Theme.lua
+Modules/CollapseState.lua
+Modules/CharacterFrame.lua
+Modules/Tabs.lua
+Modules/EquipmentSlots.lua
+Modules/GearTooltips.lua
+Modules/ReputationCurrency.lua
+Modules/DockRegistry.lua
+Modules/AddonButtonDock.lua
+Modules/InfoDock.lua
+Modules/SidePanels.lua
+Modules/Settings.lua
+Modules/Debug.lua

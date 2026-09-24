@@ -50,7 +50,7 @@ Settings are organized into **Character Sheet**, **Attributes**, and **Reputatio
 
 Use `/bcs debug` for a compact diagnostic report. The addon also provides `/rl` as a shortcut for reloading the interface.
 
-## Moving from Boojie Collapse Keeper
+## Moving from Boojie Collapse Keeper (now obsolete)
 
 To preserve remembered Reputation and Currency header states:
 

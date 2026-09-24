@@ -1,14 +1,58 @@
 # Boojie Character Sheet
 
-Boojie Character Sheet is a lightweight visual and gear-status enhancement for Blizzard's Retail character sheet. It skins the existing interface, adds configurable gear details and categorized character statistics, and remembers Reputation and Currency header expansion states. Blizzard remains authoritative for character data, equipment interactions, tooltips, model behavior, navigation, reputation, and currency.
+Boojie Character Sheet is a visual and gear-status enhancement for World of Warcraft Retail's character sheet. It preserves Blizzard's equipment interactions, tooltips, character model, navigation, reputation, and currency data while presenting them in a cleaner, configurable layout.
 
-Open the settings panel with the small gear button beside the character-sheet close button, `/bcs`, or `/boojiecharactersheet`. Character Sheet, Attributes, and Reputation and Currency settings each have their own page. The panel includes independent typography controls, gear-detail visibility, spacing, tooltip scale, colors, opacity, and section controls. When settings snapping is enabled, the panel slides from the character sheet; otherwise it remains freely movable. Use `/bcs debug` for a compact diagnostic report, or `/rl` to reload the interface.
+## Features
 
-The character tab uses a compact presentation with rarity-colored item names, item levels and optionally color-coded upgrade tracks, gem and enchant details, missing-enhancement warnings, and categorized character statistics. Titles and Equipment Manager replace the statistics view when selected, while the Transmog button opens Blizzard's own Transmog window. Gear details remain overlays around Blizzard's native equipment buttons, so normal clicks, drag-and-drop behavior, and tooltips remain Blizzard-owned.
+- Configurable gear names, item levels, upgrade tracks, gems, and enchants
+- Distinct colors for Adventurer, Veteran, Champion, Hero, and Myth upgrade tracks
+- Optional hiding of completed upgrade tracks
+- Categorized General, Attributes, Secondary, Attack, and Defense statistics
+- Reorderable and collapsible statistics sections
+- Separate typography and color controls for headings and attribute values
+- Embedded Titles and Equipment Manager views
+- Shortcut to Blizzard's native Transmog window
+- Remembered Reputation and Currency collapse states
+- Configurable equipment spacing and tooltip size
+- Movable character sheet and settings panel
+- Optional snapped settings panel with opening and closing animations
+- Account-wide or character-specific typography
+- Compatibility support for commonly used character-sheet addons
+
+## Installation
+
+1. Download or clone this repository.
+2. Place the `BoojieCharacterSheet` folder in your World of Warcraft Retail addon directory:
+
+   ```text
+   World of Warcraft/_retail_/Interface/AddOns/
+   ```
+
+3. Confirm the final path is:
+
+   ```text
+   Interface/AddOns/BoojieCharacterSheet/BoojieCharacterSheet.toc
+   ```
+
+4. Restart World of Warcraft or reload the interface.
+5. Enable **Boojie Character Sheet** from the AddOns menu on the character-selection screen.
+
+## Usage
+
+Open the character sheet normally or with the addon's minimap button. Open the settings panel with the small gear button beside the character-sheet close button, by right-clicking the minimap button, or with either slash command:
+
+```text
+/bcs
+/boojiecharactersheet
+```
+
+Settings are organized into **Character Sheet**, **Attributes**, and **Reputation and Currency** pages. Use the icons above the statistics panel to switch between Character Stats, Titles, Equipment Manager, and Transmog.
+
+Use `/bcs debug` for a compact diagnostic report. The addon also provides `/rl` as a shortcut for reloading the interface.
 
 ## Moving from Boojie Collapse Keeper
 
-To preserve remembered header states:
+To preserve remembered Reputation and Currency header states:
 
 1. Install and enable Boojie Character Sheet.
 2. Keep Boojie Collapse Keeper enabled for the first login.
@@ -16,8 +60,28 @@ To preserve remembered header states:
 4. Reload or log out normally.
 5. Disable or remove Boojie Collapse Keeper.
 
-The legacy database is only available for import while its addon is enabled and loaded. The import copies valid entries and never modifies or deletes `BoojieCollapseKeeperDB`. If old states do not matter, Boojie Collapse Keeper can be removed immediately.
+The import copies valid entries and never modifies or deletes `BoojieCollapseKeeperDB`. If preserving old states is unnecessary, Boojie Collapse Keeper can be removed immediately.
 
-## Settings ownership
+## Saved Data
 
-Appearance and character-specific typography are stored per character. The account database stores the optional shared typography profile, collapse states, and migration markers. Enabling account-wide typography does not overwrite character values.
+Appearance, layout, and character-specific typography are stored in `BoojieCharacterSheetCharDB`. Account-wide typography, minimap placement, snapping preferences, and remembered Reputation and Currency states are stored in `BoojieCharacterSheetDB`.
+
+All data remains local to your World of Warcraft installation and is not transmitted anywhere.
+
+## Compatibility
+
+- World of Warcraft Retail
+- Interface version: `120100`
+- Pawn is optional
+- Class Codex is optional
+- ElvUI and ElvUI WindTools are optional
+- SharedMedia_MyMedia is optional
+- Warband Nexus frames and data are not modified
+
+## Feedback and Issues
+
+If you find a bug or have an idea for an improvement, open an issue on this repository with a clear description and the steps needed to reproduce the behavior.
+
+## Author
+
+Created by SilverRavyn.

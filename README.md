@@ -84,4 +84,4 @@ If you find a bug or have an idea for an improvement, open an issue on this repo
 
 ## Author
 
-Created by SilverRavyn.
+Created by **BoojiePanda (SilverRavyn)**.

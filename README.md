@@ -29,7 +29,7 @@ Boojie Character Sheet is a visual and gear-status enhancement for World of Warc
 
 Boojie Character Sheet works without ElvUI or SharedMedia. Optional font choices depend on enabled addons that register them through LibSharedMedia. If a saved font is unavailable, the addon safely uses a Blizzard fallback.
 
-The character sheet is anchored beside the minimap and cannot be dragged. Scroll the mouse wheel over the character sheet to resize it. The attached Settings window follows the same size automatically.
+The character sheet is anchored beside the minimap and cannot be dragged. Scroll the mouse wheel over the character sheet to resize it. The attached Settings window follows the same size automatically. An optional addon, **MoveAny on CurseForge**, can be used to move the character frame window.
 
 ## Settings
 

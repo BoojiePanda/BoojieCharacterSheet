@@ -2,12 +2,17 @@
 ## Title: |cFFFF8DA1Boojie Character Sheet|r
 ## Author: SilverRavyn
 ## Notes: A lightweight skin and gear-status enhancement for Blizzard's character sheet.
-## Version: 0.5.29
+## Version: 0.6.0
 ## Category: Quality of Life
-## IconTexture: Interface\AddOns\BoojieCharacterSheet\BoojieCharacterSheetIcon.png
+## IconTexture: Interface\AddOns\BoojieCharacterSheet\BoojieCharacterSheetBCSIcon.png
 ## SavedVariables: BoojieCharacterSheetDB
 ## SavedVariablesPerCharacter: BoojieCharacterSheetCharDB
-## OptionalDeps: Pawn, WarbandNexus, MidnightHelper, ClassCodex, ElvUI, ElvUI_WindTools, SharedMedia_MyMedia
+## OptionalDeps: Pawn, WarbandNexus, MidnightHelper, ClassCodex, ElvUI, ElvUI_Libraries, ElvUI_WindTools, SharedMedia, SharedMedia_MyMedia
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 
 Defaults.lua
 Media.lua
@@ -26,4 +31,5 @@ Modules/AddonButtonDock.lua
 Modules/InfoDock.lua
 Modules/SidePanels.lua
 Modules/Settings.lua
+Modules/SkinClashWarning.lua
 Modules/Debug.lua

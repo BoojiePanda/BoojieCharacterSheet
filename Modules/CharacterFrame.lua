@@ -17,7 +17,8 @@ function M:CreateSettingsButton()
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Boojie Character Sheet settings", 1, 0.553, 0.631)
+        local r, g, b = BCS:GetAccentColor()
+        GameTooltip:SetText("Boojie Character Sheet settings", r, g, b)
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
@@ -25,9 +26,65 @@ function M:CreateSettingsButton()
     self.settingsButton = button
 end
 
-local function SavePosition(frame, key)
-    local point, _, relativePoint, x, y = frame:GetPoint(1)
-    BCS.charDB[key] = { point = point or "TOPLEFT", relativePoint = relativePoint or point or "TOPLEFT", x = x or 0, y = y or 0 }
+local MINIMAP_GAP = 8
+local TOP_BUFF_OFFSET = -40
+local CHARACTER_FRAME_WIDTH = 870
+local CHARACTER_FRAME_HEIGHT = 740
+local CHARACTER_MODEL_WIDTH = 335
+local CHARACTER_MODEL_HEIGHT = 540
+local MIN_WINDOW_SCALE = 0.75
+local MAX_WINDOW_SCALE = 1
+local WINDOW_SCALE_STEP = 0.05
+
+function M:AnchorPosition()
+    if self.settingPosition or not Minimap then return end
+    self.settingPosition = true
+    local scale = CharacterFrame:GetScale()
+    CharacterFrame:ClearAllPoints()
+    CharacterFrame:SetPoint("TOPLEFT", Minimap, "TOPRIGHT", MINIMAP_GAP / scale, TOP_BUFF_OFFSET / scale)
+    self.settingPosition = nil
+end
+
+function M:SetWindowScale(scale)
+    scale = tonumber(scale) or MAX_WINDOW_SCALE
+    scale = math.max(MIN_WINDOW_SCALE, math.min(MAX_WINDOW_SCALE, scale))
+    scale = math.floor((scale * 100) + 0.5) / 100
+    BCS.db.characterSheetScale = scale
+    CharacterFrame:SetScale(scale)
+    self:AnchorPosition()
+    local settings = BCS.modules.Settings
+    if settings and settings.panelReady then settings:Refresh() end
+end
+
+function M:ResizeFromWheel(delta)
+    if InCombatLockdown() then return end
+    if delta == 0 then return end
+    local current = tonumber(BCS.db.characterSheetScale) or MAX_WINDOW_SCALE
+    self:SetWindowScale(current + (delta > 0 and WINDOW_SCALE_STEP or -WINDOW_SCALE_STEP))
+end
+
+function M:InitializePositioning()
+    -- This window has one fixed anchor. Remove every legacy saved position.
+    BCS.charDB.characterFramePosition = nil
+    BCS.charDB.characterWindowPosition = nil
+    CharacterFrame:SetMovable(false)
+    CharacterFrame:EnableMouseWheel(true)
+    self:SetWindowScale(BCS.db.characterSheetScale)
+    CharacterFrame:HookScript("OnMouseWheel", function(_, delta) self:ResizeFromWheel(delta) end)
+
+    local monitor = CreateFrame("Frame")
+    monitor:SetScript("OnUpdate", function()
+        if not CharacterFrame:IsShown() or not Minimap then return end
+        local left, top = CharacterFrame:GetLeft(), CharacterFrame:GetTop()
+        local expectedLeft, expectedTop = Minimap:GetRight(), Minimap:GetTop()
+        local characterScale, minimapScale = CharacterFrame:GetEffectiveScale(), Minimap:GetEffectiveScale()
+        if left and top and expectedLeft and expectedTop
+            and (math.abs((left * characterScale) - ((expectedLeft * minimapScale) + (MINIMAP_GAP * UIParent:GetEffectiveScale()))) > 0.5
+                or math.abs((top * characterScale) - ((expectedTop * minimapScale) + (TOP_BUFF_OFFSET * UIParent:GetEffectiveScale()))) > 0.5) then
+            self:AnchorPosition()
+        end
+    end)
+    self.positionMonitor = monitor
 end
 
 local function CharacterIdentityText()
@@ -77,34 +134,7 @@ function M:UpdateGuildHeader()
 end
 
 function M:MakeMovable()
-    CharacterFrame:SetMovable(true); CharacterFrame:SetClampedToScreen(true); CharacterFrame:EnableMouse(true)
-    CharacterFrame:SetUserPlaced(true)
-    if self.movable then return end
-    CharacterFrame:RegisterForDrag("LeftButton")
-    local function StartDrag(frame)
-        if not InCombatLockdown() and not frame._bcsDirectMoving then
-            frame._bcsDirectMoving = true
-            frame:StartMoving()
-        end
-    end
-    local function StopDrag(frame)
-        if not frame._bcsDirectMoving then return end
-        frame:StopMovingOrSizing(); frame:SetUserPlaced(true); SavePosition(frame, "characterFramePosition")
-        frame._bcsDirectMoving = nil
-    end
-    CharacterFrame:HookScript("OnDragStart", StartDrag)
-    CharacterFrame:HookScript("OnDragStop", StopDrag)
-
-    local titleContainer = CharacterFrame.TitleContainer
-    if titleContainer and titleContainer.HookScript then
-        titleContainer:EnableMouse(true); titleContainer:RegisterForDrag("LeftButton")
-        function titleContainer:GetMAEle() return CharacterFrame end
-        titleContainer:HookScript("OnMouseDown", function(_, button) if button == "LeftButton" then StartDrag(CharacterFrame) end end)
-        titleContainer:HookScript("OnMouseUp", function(_, button) if button == "LeftButton" then StopDrag(CharacterFrame) end end)
-        titleContainer:HookScript("OnDragStart", function() StartDrag(CharacterFrame) end)
-        titleContainer:HookScript("OnDragStop", function() StopDrag(CharacterFrame) end)
-    end
-    self.movable = true
+    CharacterFrame:SetMovable(false)
 end
 
 function M:LayoutTabs()
@@ -144,7 +174,8 @@ function M:CreateTransmogButton()
 
     button:SetScript("OnEnter", function(current)
         GameTooltip:SetOwner(current, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Transmogrification", 1, 0.553, 0.631)
+        local r, g, b = BCS:GetAccentColor()
+        GameTooltip:SetText("Transmogrification", r, g, b)
         GameTooltip:AddLine("Open Blizzard's Transmogrification window and switch between your saved outfits.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
@@ -177,11 +208,18 @@ function M:LayoutSidebarIcons()
     self:CreateTransmogButton()
     local tabs = { PaperDollSidebarTab1, PaperDollSidebarTab2, PaperDollSidebarTab3, self.transmogButton }
     local previous
+    local attributesPanel = BCS.modules.InfoDock and BCS.modules.InfoDock.frame
     for _, tab in ipairs(tabs) do
         if tab then
             tab:ClearAllPoints(); tab:SetSize(26, 26)
             if previous then tab:SetPoint("LEFT", previous, "RIGHT", 6, 0)
-            else tab:SetPoint("TOPRIGHT", CharacterFrame, "TOPRIGHT", -158, -51) end
+            elseif attributesPanel then
+                -- Four 26px buttons with three 6px gaps form a 122px group.
+                -- The first button's center sits 48px left of the group center.
+                tab:SetPoint("TOP", attributesPanel, "TOP", -48, 31)
+            else
+                tab:SetPoint("TOPRIGHT", CharacterFrame, "TOPRIGHT", -174, -51)
+            end
             previous = tab
         end
     end
@@ -189,17 +227,14 @@ end
 
 function M:Apply()
     if not CharacterFrame then return end
-    CharacterFrame:SetMovable(true); CharacterFrame:SetClampedToScreen(true); CharacterFrame:EnableMouse(true)
+    CharacterFrame:SetMovable(false); CharacterFrame:SetClampedToScreen(true); CharacterFrame:EnableMouse(true)
+    CharacterFrame:SetScale(BCS.db.characterSheetScale)
     if UIPanelWindows and UIPanelWindows.CharacterFrame then
-        UIPanelWindows.CharacterFrame.width = 870
-        UIPanelWindows.CharacterFrame.height = 650
+        UIPanelWindows.CharacterFrame.width = CHARACTER_FRAME_WIDTH
+        UIPanelWindows.CharacterFrame.height = CHARACTER_FRAME_HEIGHT
     end
-    CharacterFrame:SetSize(870, 650)
-    local saved = BCS.charDB.characterFramePosition
-    if saved then
-        CharacterFrame:ClearAllPoints()
-        CharacterFrame:SetPoint(saved.point, UIParent, saved.relativePoint, saved.x, saved.y)
-    end
+    CharacterFrame:SetSize(CHARACTER_FRAME_WIDTH, CHARACTER_FRAME_HEIGHT)
+    self:AnchorPosition()
     if CharacterFrameBg then
         CharacterFrameBg:ClearAllPoints()
         CharacterFrameBg:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 0, 0)
@@ -209,21 +244,23 @@ function M:Apply()
         CharacterChestSlot, CharacterShirtSlot, CharacterTabardSlot, CharacterWristSlot }
     local rightSlots = { CharacterHandsSlot, CharacterWaistSlot, CharacterLegsSlot, CharacterFeetSlot,
         CharacterFinger0Slot, CharacterFinger1Slot, CharacterTrinket0Slot, CharacterTrinket1Slot }
-    local gap = math.max(10, (BCS.charDB.equipmentTopPadding or 0) + (BCS.charDB.equipmentBottomPadding or 0))
+    local sampleName = leftSlots[1] and leftSlots[1]._bcsDetails and leftSlots[1]._bcsDetails.name
+    local nameHeight = sampleName and sampleName:GetStringHeight() or BCS:GetTypography("gearNameSize")
+    local gap = nameHeight + (BCS.charDB.equipmentTopPadding or 0) + (BCS.charDB.equipmentBottomPadding or 0)
     if leftSlots[1] then
-        leftSlots[1]:ClearAllPoints(); leftSlots[1]:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 20, -60)
+        leftSlots[1]:ClearAllPoints(); leftSlots[1]:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 20, -100)
         for index = 2, #leftSlots do
             leftSlots[index]:ClearAllPoints(); leftSlots[index]:SetPoint("TOPLEFT", leftSlots[index - 1], "BOTTOMLEFT", 0, -gap)
         end
     end
     if rightSlots[1] then
-        rightSlots[1]:ClearAllPoints(); rightSlots[1]:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 555, -60)
+        rightSlots[1]:ClearAllPoints(); rightSlots[1]:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 555, -100)
         for index = 2, #rightSlots do
             rightSlots[index]:ClearAllPoints(); rightSlots[index]:SetPoint("TOPLEFT", rightSlots[index - 1], "BOTTOMLEFT", 0, -gap)
         end
     end
     if CharacterMainHandSlot then
-        CharacterMainHandSlot:ClearAllPoints(); CharacterMainHandSlot:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMLEFT", 244, 47)
+        CharacterMainHandSlot:ClearAllPoints(); CharacterMainHandSlot:SetPoint("BOTTOMLEFT", CharacterFrame, "BOTTOMLEFT", 244, 20)
     end
     if CharacterSecondaryHandSlot then
         CharacterSecondaryHandSlot:ClearAllPoints(); CharacterSecondaryHandSlot:SetPoint("LEFT", CharacterMainHandSlot, "RIGHT", 58, 0)
@@ -231,7 +268,7 @@ function M:Apply()
     if CharacterModelScene then
         CharacterModelScene:ClearAllPoints()
         CharacterModelScene:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 145, -52)
-        CharacterModelScene:SetPoint("BOTTOMRIGHT", CharacterFrame, "BOTTOMRIGHT", -390, 58)
+        CharacterModelScene:SetSize(CHARACTER_MODEL_WIDTH, CHARACTER_MODEL_HEIGHT)
         local showModel = BCS.charDB.liveCharacterViewEnabled ~= false
         CharacterModelScene:SetShown(showModel)
         if CharacterModelScene.ControlFrame then CharacterModelScene.ControlFrame:SetShown(showModel) end
@@ -253,6 +290,7 @@ end
 
 function M:Initialize()
     BCS:WhenCharacterUIReady(function()
+        self:InitializePositioning()
         self:Apply()
         CharacterFrame:HookScript("OnShow", function()
             self:Apply()

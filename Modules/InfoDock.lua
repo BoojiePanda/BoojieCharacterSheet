@@ -125,7 +125,8 @@ function M:CreateSection(key)
         row.key = rowDefinition[1]
         row:SetScript("OnEnter", function(current)
             GameTooltip:SetOwner(current, "ANCHOR_RIGHT")
-            GameTooltip:SetText(current.label:GetText() or rowDefinition[2], 1, 0.553, 0.631)
+            local r, g, b = BCS:GetAccentColor()
+            GameTooltip:SetText(current.label:GetText() or rowDefinition[2], r, g, b)
             GameTooltip:AddLine("Current: " .. tostring(current._value or "—"), 1, 1, 1)
             GameTooltip:AddLine(STAT_HELP[current.key] or "Character statistic.", 0.82, 0.82, 0.82, true)
             GameTooltip:Show()
@@ -225,9 +226,9 @@ function M:Refresh()
     self.frame:SetShown(CharacterFrame:IsShown() and PaperDollFrame:IsShown())
     if CharacterStatsPane then CharacterStatsPane:SetAlpha(0); CharacterStatsPane:EnableMouse(false) end
     if not self.frame:IsShown() then return end
-    local bg, border = BCS.charDB.backgroundColor, BCS.charDB.borderColor
+    local bg, border = BCS.charDB.attributesBackgroundColor, BCS.charDB.borderColor
     local headingColor, attributeColor = BCS.charDB.attributesHeaderColor, BCS.charDB.attributesBodyColor
-    self.frame:SetBackdropColor(bg[1], bg[2], bg[3], 0.72 * (bg[4] or 1)); self.frame:SetBackdropBorderColor(border[1], border[2], border[3], BCS.charDB.borderOpacity)
+    self.frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1); self.frame:SetBackdropBorderColor(border[1], border[2], border[3], BCS.charDB.borderOpacity)
     if self.contentMode and self.contentMode ~= "stats" then
         for _, section in pairs(self.sections) do section:Hide() end
         return

@@ -1,4 +1,7 @@
 local ADDON_NAME, BCS = ...
+local ADDON_TITLE = "Boojie Character Sheet"
+local ADDON_ICON = "Interface\\AddOns\\BoojieCharacterSheet\\BoojieCharacterSheetBCSIcon.png"
+local LDB_NAME = "BoojieCharacterSheetLauncher"
 
 _G.BoojieCharacterSheet = BCS
 BCS.modules = BCS.modules or {}
@@ -52,170 +55,151 @@ local function ApplyDefaults(target, defaults)
 end
 
 function BCS:RegisterModule(name, module) self.modules[name] = module end
+function BCS:GetAccentColor()
+    local color = self.charDB and self.charDB.accentColor or self.characterDefaults.accentColor
+    return color[1], color[2], color[3], color[4] or 1
+end
+function BCS:AccentText(text)
+    local r, g, b = self:GetAccentColor()
+    return ("|cff%02x%02x%02x%s|r"):format(
+        math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), tostring(text))
+end
 function BCS:GetTypography(key)
     local account = self.db.typography
     local character = self.charDB.typography
     local value = account.useAccountWide and account[key] or character[key]
     if value == nil then value = self.defaults.typography[key] end
-    if key == "font" and not value then value = self.media.defaultFont end
+    if key == "font" then
+        local sharedName = self.GetMediaName and self:GetMediaName("font")
+        if sharedName and self.LSM then value = self.LSM:Fetch("font", sharedName, true) or value end
+        if not value then value = self.media.defaultFont end
+    end
     if key ~= "font" and key:match("Font$") and not value then value = self:GetTypography("font") end
     return value
 end
-function BCS:Print(message) print("|cFFFF8DA1Boojie Character Sheet:|r " .. tostring(message)) end
+function BCS:Print(message) print(self:AccentText("Boojie Character Sheet:") .. " " .. tostring(message)) end
 
-local function PositionMinimapButton(button)
-    local radius = (Minimap:GetWidth() * 0.5) + 10
-    local radians = math.rad(BCS.db.minimapAngle)
-    button:ClearAllPoints()
-    button:SetPoint("CENTER", Minimap, "CENTER", math.cos(radians) * radius, math.sin(radians) * radius)
+local function ToggleCharacterSheet()
+    if not CharacterFrame and C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_CharacterUI") end
+    local opening = CharacterFrame and not CharacterFrame:IsShown()
+    local characterModule = BCS.modules.CharacterFrame
+    if opening then
+        CharacterFrame:SetAlpha(0)
+        if characterModule and characterModule.Apply then characterModule:Apply() end
+    end
+    if type(ToggleCharacter) == "function" then
+        ToggleCharacter("PaperDollFrame")
+    elseif CharacterFrame then
+        if CharacterFrame:IsShown() then HideUIPanel(CharacterFrame)
+        else
+            ShowUIPanel(CharacterFrame)
+            if type(CharacterFrame_ShowSubFrame) == "function" then CharacterFrame_ShowSubFrame("PaperDollFrame") end
+        end
+    end
+    if opening then
+        C_Timer.After(0.06, function()
+            if characterModule and characterModule.Apply then characterModule:Apply() end
+            CharacterFrame:SetAlpha(1)
+        end)
+    end
 end
 
-local function SkinMinimapButton(button, icon)
-    button:SetSize(31, 31); button:SetFrameStrata("MEDIUM"); button:SetFrameLevel(8)
-    button:SetHitRectInsets(-6, -6, -6, -6)
-    local background = button:CreateTexture(nil, "BACKGROUND")
-    background:SetTexture(136467); background:SetSize(24, 24); background:SetPoint("CENTER")
-    local border = button:CreateTexture(nil, "OVERLAY")
-    border:SetTexture(136430); border:SetSize(50, 50); border:SetPoint("TOPLEFT")
-    icon:ClearAllPoints(); icon:SetPoint("CENTER"); icon:SetSize(18, 18)
-    button.background, button.border = background, border
-end
-
-local function SyncMinimapButtonPresentation(button)
-    local onMinimap = button:GetParent() == Minimap
-    button.background:SetShown(onMinimap)
-    button.border:SetShown(onMinimap)
+function BCS:SetMinimapButtonShown(shown)
+    self.db.showMinimapButton = not not shown
+    self.db.minimap.hide = not self.db.showMinimapButton
+    if not self.dbIcon then return end
+    if self.db.showMinimapButton then self.dbIcon:Show(LDB_NAME) else self.dbIcon:Hide(LDB_NAME) end
 end
 
 function BCS:CreateMinimapButton()
     if self.minimapButton then return end
-    local button = CreateFrame("Button", "BoojieCharacterSheetMinimapButton", Minimap)
-    button:SetSize(30, 30)
-    PositionMinimapButton(button)
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    button:RegisterForDrag("LeftButton")
-    local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture("Interface\\AddOns\\BoojieCharacterSheet\\BoojieCharacterSheetIcon.png")
-    icon:SetSize(18, 18); icon:SetPoint("CENTER")
-    button.icon = icon
-    SkinMinimapButton(button, icon)
-    SyncMinimapButtonPresentation(button)
-    hooksecurefunc(button, "SetParent", SyncMinimapButtonPresentation)
-    button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-    button:SetScript("OnClick", function(_, mouseButton)
-        if button._bcsJustDragged then return end
-        if mouseButton == "RightButton" and BCS.ToggleSettings then
-            BCS.ToggleSettings()
-        elseif mouseButton == "LeftButton" then
-            if not CharacterFrame and C_AddOns and C_AddOns.LoadAddOn then
-                C_AddOns.LoadAddOn("Blizzard_CharacterUI")
-            end
-            local opening = CharacterFrame and not CharacterFrame:IsShown()
-            local characterModule = BCS.modules.CharacterFrame
-            if opening then
-                CharacterFrame:SetAlpha(0)
-                if characterModule and characterModule.Apply then characterModule:Apply() end
-            end
-            if type(ToggleCharacter) == "function" then
-                ToggleCharacter("PaperDollFrame")
-            elseif CharacterFrame then
-                if CharacterFrame:IsShown() then
-                    HideUIPanel(CharacterFrame)
-                else
-                    ShowUIPanel(CharacterFrame)
-                    if type(CharacterFrame_ShowSubFrame) == "function" then
-                        CharacterFrame_ShowSubFrame("PaperDollFrame")
-                    end
-                end
-            end
-            if opening then
-                C_Timer.After(0.06, function()
-                    if characterModule and characterModule.Apply then characterModule:Apply() end
-                    CharacterFrame:SetAlpha(1)
-                end)
-            end
-        end
-    end)
-    button:SetScript("OnEnter", function(owner)
-        local mapX = Minimap:GetCenter()
-        GameTooltip:SetOwner(Minimap, mapX and mapX < (UIParent:GetWidth() * 0.5) and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
-        GameTooltip:AddLine("Boojie Character Sheet")
-        GameTooltip:AddLine("Left-click to open the character sheet.", 1, 1, 1)
-        GameTooltip:AddLine("Right-click to open settings.", 1, 1, 1)
-        GameTooltip:Show()
-    end)
-    button:SetScript("OnLeave", GameTooltip_Hide)
-    button:SetScript("OnDragStart", function(current)
-        current:SetScript("OnUpdate", function()
-            local cursorX, cursorY = GetCursorPosition()
-            local scale = Minimap:GetEffectiveScale()
-            local centerX, centerY = Minimap:GetCenter()
-            if centerX and centerY then
-                BCS.db.minimapAngle = math.deg(math.atan2((cursorY / scale) - centerY, (cursorX / scale) - centerX))
-                PositionMinimapButton(current)
-            end
-        end)
-    end)
-    button:SetScript("OnDragStop", function(current)
-        current:SetScript("OnUpdate", nil); current._bcsJustDragged = true
-        PositionMinimapButton(current)
-        C_Timer.After(0, function() current._bcsJustDragged = nil end)
-    end)
+    local libStub = _G.LibStub
+    local dataBroker = libStub and libStub("LibDataBroker-1.1", true)
+    local dbIcon = libStub and libStub("LibDBIcon-1.0", true)
+    if not dataBroker or not dbIcon then return end
+    local launcher = dataBroker:NewDataObject(LDB_NAME, {
+        type = "launcher", label = ADDON_TITLE, text = ADDON_TITLE, icon = ADDON_ICON,
+        OnClick = function(_, mouseButton)
+            if mouseButton == "RightButton" and BCS.ToggleSettings then BCS.ToggleSettings()
+            elseif mouseButton == "LeftButton" then ToggleCharacterSheet() end
+        end,
+        OnTooltipShow = function(tooltip)
+            local r, g, b = BCS:GetAccentColor()
+            tooltip:AddLine(ADDON_TITLE, r, g, b)
+            tooltip:AddLine("Left-click to open the character sheet.", 1, 1, 1)
+            tooltip:AddLine("Right-click to open settings.", 1, 1, 1)
+        end,
+    })
+    self.db.minimap.hide = not self.db.showMinimapButton
+    dbIcon:Register(LDB_NAME, launcher, self.db.minimap)
+    self.dbIcon = dbIcon
+    self.minimapButton = dbIcon:GetMinimapButton(LDB_NAME)
+end
 
-    local hitTarget = CreateFrame("Button", nil, UIParent)
-    hitTarget:SetSize(38, 38)
-    hitTarget:SetPoint("CENTER", button, "CENTER")
-    local function SyncHitTarget()
-        local onMinimap = button:GetParent() == Minimap
-        local parent = onMinimap and UIParent or button:GetParent() or UIParent
-        if hitTarget:GetParent() ~= parent then hitTarget:SetParent(parent) end
-        hitTarget:SetFrameStrata(button:GetFrameStrata())
-        hitTarget:SetFrameLevel(button:GetFrameLevel() + 1)
-        hitTarget:SetShown(onMinimap)
-        button:EnableMouse(not onMinimap)
-    end
-    SyncHitTarget()
-    hooksecurefunc(button, "SetParent", SyncHitTarget)
-    hooksecurefunc(button, "SetFrameStrata", SyncHitTarget)
-    hooksecurefunc(button, "SetFrameLevel", SyncHitTarget)
-    hitTarget:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    hitTarget:RegisterForDrag("LeftButton")
-    hitTarget:SetScript("OnClick", function(_, mouseButton)
-        local script = button:GetScript("OnClick")
-        if script then script(button, mouseButton) end
+local function OpenAddonSettings()
+    if not CharacterFrame or not CharacterFrame:IsShown() then ToggleCharacterSheet() end
+    C_Timer.After(0.08, function()
+        local settings = BCS.modules.Settings
+        if settings and settings.panelReady then settings:Refresh(); settings:Open() end
     end)
-    hitTarget:SetScript("OnEnter", function()
-        local script = button:GetScript("OnEnter")
-        if script then script(button) end
-    end)
-    hitTarget:SetScript("OnLeave", function()
-        local script = button:GetScript("OnLeave")
-        if script then script(button) end
-    end)
-    hitTarget:SetScript("OnDragStart", function()
-        local script = button:GetScript("OnDragStart")
-        if script then script(button) end
-    end)
-    hitTarget:SetScript("OnDragStop", function()
-        local script = button:GetScript("OnDragStop")
-        if script then script(button) end
-    end)
-    button.hitTarget = hitTarget
-    self.minimapButton = button
+end
+
+function BCS:RegisterBlizzardSettings()
+    if self.settingsCategory or not Settings or not Settings.RegisterCanvasLayoutCategory or not Settings.RegisterAddOnCategory then return end
+    local panel = CreateFrame("Frame")
+    local icon = panel:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(128, 128); icon:SetPoint("TOP", 0, -28); icon:SetTexture(ADDON_ICON)
+    local version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or ""
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOP", icon, "BOTTOM", 0, -12)
+    title:SetText("|cFFFF8DA1" .. ADDON_TITLE .. "|r  |cffaaaaaav" .. version .. "|r")
+    local description = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    description:SetPoint("TOP", title, "BOTTOM", 0, -10)
+    description:SetText("A lightweight skin and gear-status enhancement for Blizzard's character sheet.")
+    local open = CreateFrame("Button", nil, panel, "BackdropTemplate")
+    open:SetSize(210, 28); open:SetPoint("TOP", description, "BOTTOM", 0, -18)
+    open:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    local accentR, accentG, accentB = self:GetAccentColor()
+    open:SetBackdropColor(0.025, 0.025, 0.035, 0.98); open:SetBackdropBorderColor(accentR, accentG, accentB, 1)
+    local openText = open:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    openText:SetPoint("CENTER"); openText:SetText("Open Boojie Character Sheet")
+    open:SetScript("OnEnter", function(button) button:SetBackdropColor(0.10, 0.10, 0.12, 1) end)
+    open:SetScript("OnLeave", function(button) button:SetBackdropColor(0.025, 0.025, 0.035, 0.98) end)
+    open:SetScript("OnClick", OpenAddonSettings)
+    local slash = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    slash:SetPoint("TOP", open, "BOTTOM", 0, -12); slash:SetText("/bcs  or  /boojiecharactersheet")
+    local minimap = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    minimap:SetPoint("TOP", slash, "BOTTOM", -72, -18)
+    minimap.Text:SetText("Show minimap button")
+    minimap:SetScript("OnClick", function(button) BCS:SetMinimapButtonShown(button:GetChecked()) end)
+    panel:SetScript("OnShow", function() minimap:SetChecked(BCS.db.showMinimapButton) end)
+    local author = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    author:SetPoint("BOTTOM", 0, 24); author:SetText("Author: SilverRavyn")
+    local category = Settings.RegisterCanvasLayoutCategory(panel, ADDON_TITLE)
+    Settings.RegisterAddOnCategory(category)
+    self.blizzardSettingsOpenButton = open
+    self.settingsCategory = category
+end
+function BCS:RefreshAccentUI()
+    local r, g, b = self:GetAccentColor()
+    if self.blizzardSettingsOpenButton then self.blizzardSettingsOpenButton:SetBackdropBorderColor(r, g, b, 1) end
 end
 function BCS:Refresh()
+    self:RefreshAccentUI()
     for _, module in pairs(self.modules) do if module.Refresh then module:Refresh() end end
 end
 
 function BCS:InitializeDatabase()
     BoojieCharacterSheetDB = type(BoojieCharacterSheetDB) == "table" and BoojieCharacterSheetDB or {}
     BoojieCharacterSheetCharDB = type(BoojieCharacterSheetCharDB) == "table" and BoojieCharacterSheetCharDB or {}
-    for _, key in ipairs({ "settingsWindowSnapped" }) do
-        if BoojieCharacterSheetDB[key] == nil and BoojieCharacterSheetCharDB[key] ~= nil then
-            BoojieCharacterSheetDB[key] = BoojieCharacterSheetCharDB[key]
-        end
-        BoojieCharacterSheetCharDB[key] = nil
+    BoojieCharacterSheetDB.minimap = type(BoojieCharacterSheetDB.minimap) == "table" and BoojieCharacterSheetDB.minimap or {}
+    if BoojieCharacterSheetDB.minimap.minimapPos == nil then
+        BoojieCharacterSheetDB.minimap.minimapPos = BoojieCharacterSheetDB.minimapAngle or self.defaults.minimap.minimapPos
     end
+    BoojieCharacterSheetDB.minimapAngle = nil
+    BoojieCharacterSheetDB.settingsWindowSnapped = nil
+    BoojieCharacterSheetCharDB.settingsWindowSnapped = nil
+    BoojieCharacterSheetCharDB.settingsPosition = nil
     for _, key in ipairs({ "titleWindowSnapped", "equipmentWindowSnapped" }) do
         BoojieCharacterSheetDB[key] = nil
         BoojieCharacterSheetCharDB[key] = nil
@@ -225,6 +209,17 @@ function BCS:InitializeDatabase()
     BoojieCharacterSheetCharDB.headerColor = nil
     BoojieCharacterSheetCharDB.sectionHeadersEnabled = nil
     BoojieCharacterSheetCharDB.infoDockPosition = nil
+    BoojieCharacterSheetCharDB.restrainedTabsEnabled = nil
+    BoojieCharacterSheetCharDB.backgroundOpacity = nil
+    if type(BoojieCharacterSheetCharDB.backgroundColor) == "table" then
+        if BoojieCharacterSheetCharDB.characterSheetBackgroundColor == nil then
+            BoojieCharacterSheetCharDB.characterSheetBackgroundColor = Copy(BoojieCharacterSheetCharDB.backgroundColor)
+        end
+        if BoojieCharacterSheetCharDB.attributesBackgroundColor == nil then
+            BoojieCharacterSheetCharDB.attributesBackgroundColor = Copy(BoojieCharacterSheetCharDB.backgroundColor)
+        end
+    end
+    BoojieCharacterSheetCharDB.backgroundColor = nil
     for _, database in ipairs({ BoojieCharacterSheetDB, BoojieCharacterSheetCharDB }) do
         local typography = type(database.typography) == "table" and database.typography
         if typography then
@@ -254,9 +249,10 @@ end
 
 function BCS:Initialize()
     self:InitializeDatabase()
-    self:DiscoverFonts()
+    self:InitializeMedia()
     for _, module in pairs(self.modules) do if module.Initialize then module:Initialize() end end
     self:CreateMinimapButton()
+    self:RegisterBlizzardSettings()
 end
 
 local events = CreateFrame("Frame")

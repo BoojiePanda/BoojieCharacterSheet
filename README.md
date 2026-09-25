@@ -13,42 +13,45 @@ Boojie Character Sheet is a visual and gear-status enhancement for World of Warc
 - Embedded Titles and Equipment Manager views
 - Shortcut to Blizzard's native Transmog window
 - Remembered Reputation and Currency collapse states
+- Optional ElvUI General texture for reputation progress bars
 - Configurable equipment spacing and tooltip size
-- Movable character sheet and settings panel
-- Optional snapped settings panel with opening and closing animations
+- Persistent mouse-wheel scaling from 75% to 100%
+- Attached Settings window that matches the character sheet's height and scale
+- Fixed character-sheet position beside the minimap
+- Customizable interface accent, backgrounds, borders, and text colors
 - Account-wide or character-specific typography
+- Optional SharedMedia font discovery with safe Blizzard fallbacks
+- LibDataBroker minimap button with a visibility setting and WindTools compatibility
+- Full configuration entry under `Settings > AddOns`
 - Compatibility support for commonly used character-sheet addons
+
+## Important
+
+Boojie Character Sheet works without ElvUI or SharedMedia. Optional font choices depend on enabled addons that register them through LibSharedMedia. If a saved font is unavailable, the addon safely uses a Blizzard fallback.
+
+The character sheet is anchored beside the minimap and cannot be dragged. Scroll the mouse wheel over the character sheet to resize it. The attached Settings window follows the same size automatically.
+
+## Settings
+
+Open Settings using the gear button on the character sheet, right-clicking the minimap button, typing `/bcs` or `/boojiecharactersheet`, or visiting `Settings > AddOns > Boojie Character Sheet`.
+
+Settings are organized into Character Sheet, Attributes, and Reputation and Currency pages. They include gear details, typography, colors, equipment spacing, minimap visibility, statistics sections, and the optional ElvUI Reputation texture.
+
+Use `/bcs debug` for a compact diagnostic report. The addon also provides `/rl` as a shortcut for reloading the interface.
 
 ## Installation
 
-1. Download or clone this repository.
-2. Place the `BoojieCharacterSheet` folder in your World of Warcraft Retail addon directory:
+1. Download the zip file and unarchive it.
+2. Place the `BoojieCharacterSheet` folder inside:
 
-   ```text
-   World of Warcraft/_retail_/Interface/AddOns/
-   ```
+   `World of Warcraft/_retail_/Interface/AddOns/`
 
-3. Confirm the final path is:
+3. Ensure it is properly installed by checking:
 
-   ```text
-   Interface/AddOns/BoojieCharacterSheet/BoojieCharacterSheet.toc
-   ```
+   `World of Warcraft/_retail_/Interface/AddOns/BoojieCharacterSheet/BoojieCharacterSheet.toc`
 
-4. Restart World of Warcraft or reload the interface.
-5. Enable **Boojie Character Sheet** from the AddOns menu on the character-selection screen.
-
-## Usage
-
-Open the character sheet normally or with the addon's minimap button. Open the settings panel with the small gear button beside the character-sheet close button, by right-clicking the minimap button, or with either slash command:
-
-```text
-/bcs
-/boojiecharactersheet
-```
-
-Settings are organized into **Character Sheet**, **Attributes**, and **Reputation and Currency** pages. Use the icons above the statistics panel to switch between Character Stats, Titles, Equipment Manager, and Transmog.
-
-Use `/bcs debug` for a compact diagnostic report. The addon also provides `/rl` as a shortcut for reloading the interface.
+4. Enable Boojie Character Sheet from the AddOns menu on the character-selection screen.
+5. Log in or type `/reload`.
 
 ## Moving from Boojie Collapse Keeper (now obsolete)
 
@@ -64,7 +67,7 @@ The import copies valid entries and never modifies or deletes `BoojieCollapseKee
 
 ## Saved Data
 
-Appearance, layout, and character-specific typography are stored in `BoojieCharacterSheetCharDB`. Account-wide typography, minimap placement, snapping preferences, and remembered Reputation and Currency states are stored in `BoojieCharacterSheetDB`.
+Appearance and character-specific typography are stored in `BoojieCharacterSheetCharDB`. Account-wide typography, window scale, minimap placement, and remembered Reputation and Currency states are stored in `BoojieCharacterSheetDB`.
 
 All data remains local to your World of Warcraft installation and is not transmitted anywhere.
 

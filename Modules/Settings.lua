@@ -1,4 +1,4 @@
-local _, BCS = ...
+local ADDON_NAME, BCS = ...
 local M = { controls = {} }
 BCS:RegisterModule("Settings", M)
 
@@ -15,30 +15,11 @@ local function SliderDefault(key)
     return BCS.defaults.typography[key] or BCS.characterDefaults[key] or 0
 end
 
-local function SaveWindowPosition(frame)
-    local point, _, relativePoint, x, y = frame:GetPoint(1)
-    BCS.charDB.settingsPosition = { point = point or "TOPLEFT", relativePoint = relativePoint or point or "TOPLEFT", x = x or 0, y = y or 0 }
-end
-
-local function SetSettingsSnapVisual(frame)
-    local snapped = BCS.db.settingsWindowSnapped
-    frame.snapButton.check:SetShown(snapped)
-    frame.snapButton:SetBackdropBorderColor(snapped and 0.55 or 0.48, snapped and 1 or 0.40, snapped and 0.68 or 0.48, 1)
-end
-
-local function SnapSettings(frame)
+local function AttachSettings(frame)
     frame:SetClampedToScreen(false)
+    frame:SetScale(CharacterFrame:GetScale())
+    frame:SetHeight(CharacterFrame:GetHeight())
     frame:ClearAllPoints(); frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 8, 0)
-    BCS.charDB.settingsPosition = nil; SetSettingsSnapVisual(frame)
-end
-
-local function UnsnapSettings(frame)
-    local left, top = frame:GetLeft(), frame:GetTop()
-    frame:ClearAllPoints()
-    frame:SetClampedToScreen(true)
-    if left and top then frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
-    else frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 8, 0) end
-    SetSettingsSnapVisual(frame)
 end
 
 local function SkinScrollBar(scroll)
@@ -51,11 +32,16 @@ local function SkinScrollBar(scroll)
         if region:GetObjectType() == "Texture" and region ~= thumb then region:SetAlpha(0) end
     end
     local track = bar:CreateTexture(nil, "BACKGROUND"); track:SetAllPoints(); track:SetColorTexture(0.015, 0.015, 0.022, 0.96)
-    if thumb then thumb:SetTexture("Interface\\Buttons\\WHITE8X8"); thumb:SetColorTexture(1, 0.553, 0.631, 0.9); thumb:SetWidth(8) end
+    if thumb then
+        local r, g, b = BCS:GetAccentColor()
+        thumb:SetTexture("Interface\\Buttons\\WHITE8X8"); thumb:SetColorTexture(r, g, b, 0.9); thumb:SetWidth(8)
+        M.accentTextures = M.accentTextures or {}; M.accentTextures[#M.accentTextures + 1] = { texture = thumb, alpha = 0.9 }
+    end
     for _, child in ipairs({ bar:GetChildren() }) do
-        if child.GetNormalTexture then
-            local normal = child:GetNormalTexture(); if normal then normal:SetAlpha(0) end
-            child:SetAlpha(0.7)
+        if child:IsObjectType("Button") then
+            child:SetAlpha(0)
+            child:EnableMouse(false)
+            child:Hide()
         end
     end
 end
@@ -63,7 +49,9 @@ end
 local function SkinControl(frame)
     frame:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
     frame:SetBackdropColor(0.025, 0.025, 0.035, 0.98)
-    frame:SetBackdropBorderColor(1, 0.553, 0.631, 0.7)
+    local r, g, b = BCS:GetAccentColor()
+    frame:SetBackdropBorderColor(r, g, b, 0.7)
+    M.accentControls = M.accentControls or {}; M.accentControls[#M.accentControls + 1] = frame
 end
 
 function M:AddLabel(text, x, y, template)
@@ -107,6 +95,15 @@ function M:AddStatCheckbox(label, key, y, x)
     self.controls["stats_" .. key] = box
 end
 
+function M:AddMinimapCheckbox(y, x)
+    local box = CreateFrame("CheckButton", nil, self.frame, "UICheckButtonTemplate")
+    box:SetPoint("TOPLEFT", x or 18, y); box:SetSize(22, 22)
+    box.Text:SetText("Show minimap button"); box.Text:SetTextColor(0.92, 0.92, 0.92)
+    box:SetChecked(BCS.db.showMinimapButton)
+    box:SetScript("OnClick", function(button) BCS:SetMinimapButtonShown(button:GetChecked()) end)
+    self.controls.showMinimapButton = box
+end
+
 function M:AddSlider(label, key, y, low, high, x, width, showSideLabel)
     if showSideLabel ~= false then self:AddLabel(label, 22, y) end
     local slider = CreateFrame("Slider", "BoojieCharacterSheet" .. key .. "Slider", self.frame, "OptionsSliderTemplate")
@@ -133,7 +130,7 @@ end
 function M:OpenColorEditor(key)
     self.selectedColorKey = key
     if not ColorPickerFrame or not ColorPickerFrame.SetupColorPickerAndShow then
-        if C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_ColorPicker") end
+        if C_AddOns and C_AddOns.LoadAddOn then C_AddOns.LoadAddOn("Blizzard_ColorPickerFrame") end
     end
     if not ColorPickerFrame or not ColorPickerFrame.SetupColorPickerAndShow then return end
     local original = { unpack(BCS.charDB[key]) }
@@ -142,6 +139,13 @@ function M:OpenColorEditor(key)
         local a = ColorPickerFrame:GetColorAlpha() or original[4] or 1
         self:SetEditedColor({ r, g, b, a })
     end
+    local default = BCS.characterDefaults[key]
+    local defaultButton = _G.ColorPPDefault
+    if defaultButton and default then
+        defaultButton.colors = {
+            r = default[1], g = default[2], b = default[3], a = default[4] or 1,
+        }
+    end
     ColorPickerFrame:SetupColorPickerAndShow({
         r = original[1], g = original[2], b = original[3], opacity = original[4] or 1, hasOpacity = true,
         swatchFunc = Changed, opacityFunc = Changed,
@@ -149,11 +153,11 @@ function M:OpenColorEditor(key)
     })
 end
 
-function M:AddColor(label, key, x, y)
+function M:AddColor(label, key, x, y, width)
     local button = CreateFrame("Button", nil, self.frame, "BackdropTemplate")
-    button:SetPoint("TOPLEFT", x, y); button:SetSize(150, 28); SkinControl(button)
+    button:SetPoint("TOPLEFT", x, y); button:SetSize(width or 150, 30); SkinControl(button)
     button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    button.text:SetPoint("LEFT", 28, 0); button.text:SetText(label)
+    button.text:SetPoint("LEFT", 32, 0); button.text:SetPoint("RIGHT", -10, 0); button.text:SetJustifyH("LEFT"); button.text:SetText(label)
     button.swatch = button:CreateTexture(nil, "ARTWORK"); button.swatch:SetSize(17, 17); button.swatch:SetPoint("LEFT", 6, 0)
     local function RefreshSwatch()
         local color = BCS.charDB[key]; button.swatch:SetColorTexture(color[1], color[2], color[3], 1)
@@ -162,6 +166,22 @@ function M:AddColor(label, key, x, y)
         self:OpenColorEditor(key)
     end)
     RefreshSwatch(); self.controls[key] = button
+end
+
+function M:LayoutColorRow(keys, y, gap)
+    gap = gap or 12
+    local total = gap * (#keys - 1)
+    for _, key in ipairs(keys) do
+        local button = self.controls[key]
+        local width = math.max(112, math.ceil(button.text:GetStringWidth()) + 58)
+        button:SetWidth(width); total = total + width
+    end
+    local x = math.floor((self.frame:GetWidth() - total) * 0.5)
+    for _, key in ipairs(keys) do
+        local button = self.controls[key]
+        button:ClearAllPoints(); button:SetPoint("TOPLEFT", self.frame, "TOPLEFT", x, y)
+        x = x + button:GetWidth() + gap
+    end
 end
 
 function M:BuildFontList()
@@ -184,8 +204,10 @@ function M:CreateFontPicker(y, key, label)
     button:SetPoint("TOPLEFT", 125, y + 5); button:SetSize(555, 24); SkinControl(button)
     button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     button.text:SetPoint("LEFT", 8, 0); button.text:SetPoint("RIGHT", -24, 0); button.text:SetJustifyH("LEFT")
-    button.arrow = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    button.arrow:SetPoint("RIGHT", -8, 0); button.arrow:SetText("▼")
+    button.arrow = button:CreateTexture(nil, "OVERLAY")
+    button.arrow:SetPoint("RIGHT", -8, 0); button.arrow:SetSize(12, 12)
+    button.arrow:SetAtlas("dropdown-hover-arrow")
+    button.arrow:SetVertexColor(0.92, 0.92, 0.92, 1)
 
     local popup = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
     popup:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2); popup:SetSize(555, 300); SkinControl(popup)
@@ -199,9 +221,14 @@ function M:CreateFontPicker(y, key, label)
         entry:SetPoint("TOPLEFT", 2, -(index - 1) * 22); entry:SetSize(514, 21)
         entry.text = entry:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         entry.text:SetPoint("LEFT", 5, 0); entry.text:SetText(selected.name)
-        entry:SetHighlightTexture("Interface\\Buttons\\WHITE8X8"); entry:GetHighlightTexture():SetVertexColor(1, 0.553, 0.631, 0.18)
+        entry:SetHighlightTexture("Interface\\Buttons\\WHITE8X8")
+        local highlight = entry:GetHighlightTexture()
+        local r, g, b = BCS:GetAccentColor(); highlight:SetVertexColor(r, g, b, 0.18)
+        self.accentTextures = self.accentTextures or {}; self.accentTextures[#self.accentTextures + 1] = { texture = highlight, alpha = 0.18, vertex = true }
         entry:SetScript("OnClick", function()
-            SettingTable()[key] = selected.path; button.text:SetText(selected.name); popup:Hide(); BCS:Refresh()
+            SettingTable()[key] = selected.path
+            button.text:SetText(selected.name)
+            popup:Hide(); BCS:Refresh()
         end)
     end
     button:SetScript("OnClick", function()
@@ -238,58 +265,32 @@ function M:ShowPage(key, keepPopups)
 end
 
 function M:CreatePanel()
+    if self.panelReady or self.panelBuilding then return end
+    self.panelBuilding = true
+    self.panelReady = false
     local frame = CreateFrame("Frame", "BoojieCharacterSheetSettingsFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(720, 650)
-    local saved = BCS.charDB.settingsPosition
-    if BCS.db.settingsWindowSnapped then frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 8, 0)
-    elseif saved then frame:SetPoint(saved.point, UIParent, saved.relativePoint, saved.x, saved.y)
-    else frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 8, 0) end
+    frame:SetSize(720, CharacterFrame:GetHeight())
+    AttachSettings(frame)
     frame:SetFrameStrata("DIALOG"); frame:SetFrameLevel(500); SkinControl(frame); frame:Hide()
-    frame:SetMovable(true); frame:SetClampedToScreen(not BCS.db.settingsWindowSnapped); frame:EnableMouse(true); frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(window)
-        if BCS.db.settingsWindowSnapped then
-            if not InCombatLockdown() then window._bcsMovingCharacter = true; CharacterFrame:StartMoving() end
-        else window:StartMoving() end
-    end)
-    frame:SetScript("OnDragStop", function(window)
-        if window._bcsMovingCharacter then
-            CharacterFrame:StopMovingOrSizing(); CharacterFrame:SetUserPlaced(true)
-            local point, _, relativePoint, x, y = CharacterFrame:GetPoint(1)
-            BCS.charDB.characterFramePosition = { point = point, relativePoint = relativePoint, x = x, y = y }
-            window._bcsMovingCharacter = nil
-        else window:StopMovingOrSizing(); SaveWindowPosition(window) end
-    end)
+    frame:SetMovable(false); frame:EnableMouse(true)
     self.frame, self.window = frame, frame
-    local title = self:AddLabel("Boojie Character Sheet Settings", 18, -16, "GameFontNormalLarge")
+    local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or ""
+    local title = self:AddLabel("Boojie Character Sheet v" .. version, 18, -16, "GameFontNormalLarge")
     title:SetTextColor(1, 0.553, 0.631)
+    local accentR, accentG, accentB = BCS:GetAccentColor()
     local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -3, -3); close:SetScript("OnClick", function()
-        self:HideAnimated()
+    frame.closeButton = close
+    close:SetPoint("TOPRIGHT", -4, -4); close:SetFrameLevel(frame:GetFrameLevel() + 5)
+    BCS.modules.Theme:SkinCloseButton(close)
+    close:SetScript("OnClick", function()
+        self:Close()
         if ColorPickerFrame then ColorPickerFrame:Hide() end
     end)
-    local snap = CreateFrame("Button", nil, frame, "BackdropTemplate")
-    snap:SetSize(16, 16); snap:SetPoint("RIGHT", close, "LEFT", -3, 0)
-    snap:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    snap:SetBackdropColor(0.025, 0.025, 0.035, 1)
-    snap.check = snap:CreateTexture(nil, "ARTWORK"); snap.check:SetPoint("TOPLEFT", 3, -3); snap.check:SetPoint("BOTTOMRIGHT", -3, 3)
-    snap.check:SetColorTexture(0.55, 1, 0.68, 1); frame.snapButton = snap; SetSettingsSnapVisual(frame)
-    snap:SetScript("OnClick", function()
-        BCS.db.settingsWindowSnapped = not BCS.db.settingsWindowSnapped
-        if BCS.db.settingsWindowSnapped then SnapSettings(frame) else UnsnapSettings(frame); SaveWindowPosition(frame) end
-    end)
-    snap:SetScript("OnEnter", function(button)
-        GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-        GameTooltip:SetText(BCS.db.settingsWindowSnapped and "Settings snapped" or "Snap settings", BCS.db.settingsWindowSnapped and 0.55 or 1, BCS.db.settingsWindowSnapped and 1 or 0.553, BCS.db.settingsWindowSnapped and 0.68 or 0.631)
-        GameTooltip:AddLine(BCS.db.settingsWindowSnapped and "Settings are aligned with the character sheet. Dragging either window moves both together." or "Align Settings beside the character sheet and link their movement.", 1, 1, 1, true)
-        GameTooltip:AddLine(BCS.db.settingsWindowSnapped and "Click to unlock independent movement." or "Click again to unlock it.", 1, 0.82, 0.25, true)
-        GameTooltip:Show()
-    end)
-    snap:SetScript("OnLeave", GameTooltip_Hide)
-    local line = frame:CreateTexture(nil, "ARTWORK"); line:SetColorTexture(1, 0.553, 0.631, 0.5)
+    local line = frame:CreateTexture(nil, "ARTWORK"); line:SetColorTexture(accentR, accentG, accentB, 0.5)
     line:SetPoint("TOPLEFT", 15, -44); line:SetPoint("TOPRIGHT", -15, -44); line:SetHeight(1)
+    self.dividers = self.dividers or {}; self.dividers[#self.dividers + 1] = line
 
     self.pages, self.pageButtons = {}, {}
-    self.dividers = self.dividers or {}
     local function CreatePage(key, height)
         local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
         scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -94); scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -5, 8)
@@ -312,16 +313,16 @@ function M:CreatePanel()
         button:SetScript("OnClick", function() self:ShowPage(key) end)
         self.pageButtons[key] = button
     end
-    local navigationLine = frame:CreateTexture(nil, "ARTWORK"); navigationLine:SetColorTexture(1, 0.553, 0.631, 0.35)
+    local navigationLine = frame:CreateTexture(nil, "ARTWORK"); navigationLine:SetColorTexture(accentR, accentG, accentB, 0.35)
     navigationLine:SetPoint("TOPLEFT", 15, -88); navigationLine:SetPoint("TOPRIGHT", -15, -88); navigationLine:SetHeight(1)
     self.dividers[#self.dividers + 1] = navigationLine
 
     -- Character Sheet page
-    self.frame = CreatePage("character", 675)
+    self.frame = CreatePage("character", 620)
     self:AddLabel("Live appearance", 18, -18, "GameFontNormal")
     self:AddCheckbox("Show gear labels and item levels", "equipmentLabelsEnabled", -40, false, 18)
     self:AddCheckbox("Show live character view", "liveCharacterViewEnabled", -40, false, 280)
-    self:AddCheckbox("Use restrained tab styling", "restrainedTabsEnabled", -40, false, 500)
+    self:AddMinimapCheckbox(-40, 500)
     self:AddDivider(-67)
 
     self:AddLabel("Gear details", 18, -80, "GameFontNormal")
@@ -350,31 +351,11 @@ function M:CreatePanel()
     self:AddDivider(-484)
 
     self:AddLabel("Panel appearance", 18, -498, "GameFontNormal")
-    self:AddLabel("Background opacity", 22, -526)
-    local opacity = CreateFrame("Slider", "BoojieCharacterSheetOpacitySlider", self.frame, "OptionsSliderTemplate")
-    opacity:SetPoint("TOPLEFT", 270, -521); opacity:SetSize(410, 16); opacity:SetMinMaxValues(20, 100); opacity:SetValueStep(1)
-    opacity:SetValue(BCS.charDB.backgroundOpacity * 100)
-    opacity:SetScript("OnValueChanged", function(control, value)
-        value = math.floor(value + 0.5); BCS.charDB.backgroundOpacity = value / 100
-        _G[control:GetName() .. "Text"]:SetText("Opacity: " .. value .. "%"); BCS:Refresh()
-    end)
-    _G[opacity:GetName() .. "Low"]:SetText("20"); _G[opacity:GetName() .. "High"]:SetText("100")
-    _G[opacity:GetName() .. "Text"]:SetText("Opacity: " .. math.floor(opacity:GetValue() + 0.5) .. "%")
-    self.controls.backgroundOpacity = opacity
-    self:AddColor("Misc Text", "textColor", 22, -576)
-    self:AddColor("Accent", "accentColor", 190, -576)
-    self:AddColor("Panel Background", "backgroundColor", 358, -576)
-    self:AddColor("Border", "borderColor", 526, -576)
-    local reset = CreateFrame("Button", nil, self.frame, "BackdropTemplate")
-    reset:SetPoint("TOP", 0, -624); reset:SetSize(220, 28); SkinControl(reset)
-    reset.text = reset:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    reset.text:SetPoint("CENTER"); reset.text:SetText("Reset window positions")
-    reset:SetScript("OnClick", function()
-        BCS.charDB.characterFramePosition, BCS.charDB.settingsPosition = nil, nil
-        CharacterFrame:SetUserPlaced(false); CharacterFrame:ClearAllPoints(); CharacterFrame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116)
-        frame:ClearAllPoints(); frame:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 8, 0)
-        BCS.modules.CharacterFrame:Apply()
-    end)
+    self:AddColor("Misc Text", "textColor", 22, -530)
+    self:AddColor("Accent", "accentColor", 190, -530)
+    self:AddColor("Character Sheet Background", "characterSheetBackgroundColor", 342, -530, 176)
+    self:AddColor("Border", "borderColor", 526, -530)
+    self:LayoutColorRow({ "textColor", "accentColor", "characterSheetBackgroundColor", "borderColor" }, -530)
 
     -- Attributes page
     self.frame = CreatePage("attributes", 500)
@@ -398,6 +379,7 @@ function M:CreatePanel()
     self:CreateFontPicker(-330, "attributesBodyFont", "Font face")
     self:AddSlider("Font size", "attributesBodySize", -372, 8, 24)
     self:AddColor("Attribute color", "attributesBodyColor", 22, -412)
+    self:AddColor("Attributes Background", "attributesBackgroundColor", 190, -412, 180)
     self:AddDivider(-452)
 
     -- Reputation and Currency page
@@ -408,149 +390,58 @@ function M:CreatePanel()
     reputationHint:SetTextColor(0.68, 0.68, 0.72, 1)
     self:AddDivider(-108)
 
-    CharacterFrame:HookScript("OnHide", function()
-        frame:Hide()
-        for _, popup in pairs(self.fontPopups or {}) do popup:Hide() end
-        if ColorPickerFrame then ColorPickerFrame:Hide() end
-    end)
+    self:AddLabel("Bar appearance", 18, -124, "GameFontNormal")
+    self:AddCheckbox("Use ElvUI General texture for reputation bars", "useElvUIReputationTexture", -148, false, 18)
+    local textureHint = self:AddLabel("Uses Blizzard's texture when ElvUI is unavailable.", 22, -180)
+    textureHint:SetTextColor(0.68, 0.68, 0.72, 1)
+    self:AddDivider(-206)
+
+    CharacterFrame:HookScript("OnHide", function() frame:Hide() end)
     frame:HookScript("OnShow", function()
-        if BCS.db.settingsWindowSnapped and not frame._bcsSlidingOpen then SnapSettings(frame) end
+        AttachSettings(frame)
         self:ShowPage(self.currentPage or "character")
     end)
     frame:HookScript("OnHide", function()
         for _, popup in pairs(self.fontPopups or {}) do popup:Hide() end
         if ColorPickerFrame then ColorPickerFrame:Hide() end
-        local animation = self.slideAnimation
-        if animation and animation:IsPlaying() then animation:Stop() end
-        local closeAnimation = self.slideCloseAnimation
-        if closeAnimation and closeAnimation:IsPlaying() then closeAnimation:Stop() end
-        if self.slideFinalAnchor then
-            local anchor = self.slideFinalAnchor
-            frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-            self.slideFinalAnchor = nil
-        end
-        if self.slideCloseAnchor then
-            local anchor = self.slideCloseAnchor
-            frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-            self.slideCloseAnchor = nil
-        end
-        frame._bcsSlidingOpen = nil
-        frame._bcsSlidingClosed = nil
-        frame:SetAlpha(1); frame:SetFrameStrata("DIALOG")
     end)
     self.frame = frame
     self:ShowPage("character")
+    self.panelReady = true
+    self.panelBuilding = false
 end
 
-function M:ShowAnimated()
-    local frame = self.frame
-    if not frame then return end
-    if self.slideAnimation and self.slideAnimation:IsPlaying() then self.slideAnimation:Stop() end
-    if self.slideCloseAnimation and self.slideCloseAnimation:IsPlaying() then self.slideCloseAnimation:Stop() end
-    if self.slideCloseAnchor then
-        local anchor = self.slideCloseAnchor
-        frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-        self.slideCloseAnchor = nil
-    end
-    frame._bcsSlidingClosed = nil
-    if not BCS.db.settingsWindowSnapped then
-        frame:SetAlpha(1); frame:SetFrameStrata("DIALOG"); frame:Show()
-        return
-    end
-    SnapSettings(frame)
-
-    local point, relativeTo, relativePoint, x, y = frame:GetPoint(1)
-    if not point then return frame:Show() end
-    relativeTo = relativeTo or UIParent
-    x, y = x or 0, y or 0
-    self.slideFinalAnchor = { point = point, relativeTo = relativeTo, relativePoint = relativePoint or point, x = x, y = y }
-
-    local distance = frame:GetWidth()
-    frame._bcsSlidingOpen = true
-    frame:ClearAllPoints(); frame:SetPoint(point, relativeTo, relativePoint or point, x - distance, y)
-    frame:SetFrameStrata("LOW")
-    frame:SetAlpha(0); frame:Show()
-
-    local animation = self.slideAnimation
-    if not animation then
-        animation = frame:CreateAnimationGroup()
-        animation.move = animation:CreateAnimation("Translation")
-        animation.move:SetOrder(1); animation.move:SetSmoothing("OUT")
-        animation.fade = animation:CreateAnimation("Alpha")
-        animation.fade:SetOrder(1); animation.fade:SetFromAlpha(0); animation.fade:SetToAlpha(1)
-        animation:SetScript("OnFinished", function()
-            local anchor = self.slideFinalAnchor
-            if anchor then
-                frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-                self.slideFinalAnchor = nil
-            end
-            frame._bcsSlidingOpen = nil
-            frame:SetAlpha(1); frame:SetFrameStrata("DIALOG")
-        end)
-        self.slideAnimation = animation
-    end
-    animation.move:SetOffset(distance, 0); animation.move:SetDuration(0.26); animation.fade:SetDuration(0.20)
-    animation:Play()
+function M:Open()
+    if not self.panelReady then return end
+    AttachSettings(self.window)
+    self.window:Show()
 end
 
-function M:HideAnimated()
-    local frame = self.frame
-    if not frame or not frame:IsShown() then return end
-    if not BCS.db.settingsWindowSnapped then frame:Hide(); return end
-    if self.slideCloseAnimation and self.slideCloseAnimation:IsPlaying() then return end
-
-    if self.slideAnimation and self.slideAnimation:IsPlaying() then self.slideAnimation:Stop() end
-    if self.slideFinalAnchor then
-        local anchor = self.slideFinalAnchor
-        frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-        self.slideFinalAnchor = nil
-    end
-    frame._bcsSlidingOpen = nil
-    frame:SetAlpha(1); frame:SetFrameStrata("LOW")
-
-    local point, relativeTo, relativePoint, x, y = frame:GetPoint(1)
-    if not point then frame:Hide(); return end
-    self.slideCloseAnchor = { point = point, relativeTo = relativeTo or UIParent, relativePoint = relativePoint or point, x = x or 0, y = y or 0 }
-    frame._bcsSlidingClosed = true
-
-    local animation = self.slideCloseAnimation
-    if not animation then
-        animation = frame:CreateAnimationGroup()
-        animation.move = animation:CreateAnimation("Translation")
-        animation.move:SetOrder(1); animation.move:SetSmoothing("IN")
-        animation.fade = animation:CreateAnimation("Alpha")
-        animation.fade:SetOrder(1); animation.fade:SetFromAlpha(1); animation.fade:SetToAlpha(0)
-        animation:SetScript("OnFinished", function()
-            local anchor = self.slideCloseAnchor
-            self.slideCloseAnchor = nil
-            frame._bcsSlidingClosed = nil
-            frame:SetAlpha(1); frame:SetFrameStrata("DIALOG")
-            frame:Hide()
-            if anchor then
-                frame:ClearAllPoints(); frame:SetPoint(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.x, anchor.y)
-            end
-        end)
-        self.slideCloseAnimation = animation
-    end
-    animation.move:SetOffset(-frame:GetWidth(), 0); animation.move:SetDuration(0.22); animation.fade:SetDuration(0.18)
-    animation:Play()
+function M:Close()
+    if self.panelReady then self.window:Hide() end
 end
 
 function M:Refresh()
-    if not self.frame then return end
+    if not self.panelReady then return end
     self.refreshing = true
-    local bg, border = BCS.charDB.backgroundColor, BCS.charDB.borderColor
-    if BCS.db.settingsWindowSnapped then SnapSettings(self.frame) end
-    self.frame:SetBackdropColor(bg[1], bg[2], bg[3], 0.98 * (bg[4] or 1))
-    self.frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1)
+    local border = BCS.charDB.borderColor
+    AttachSettings(self.window)
+    self.window:SetBackdropColor(0, 0, 0, 1)
+    self.window:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1)
     local accent = BCS.charDB.accentColor
+    for _, control in ipairs(self.accentControls or {}) do control:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.7) end
+    for _, region in ipairs(self.accentTextures or {}) do
+        if region.vertex then region.texture:SetVertexColor(accent[1], accent[2], accent[3], region.alpha)
+        else region.texture:SetColorTexture(accent[1], accent[2], accent[3], region.alpha) end
+    end
     for _, divider in ipairs(self.dividers or {}) do divider:SetColorTexture(accent[1], accent[2], accent[3], 0.38) end
+    if self.controls.showMinimapButton then self.controls.showMinimapButton:SetChecked(BCS.db.showMinimapButton) end
     for key, button in pairs(self.fontButtons or {}) do button.text:SetText(self:CurrentFontName(key)) end
     for _, key in ipairs({ "equipmentTopPadding", "equipmentBottomPadding", "gearTooltipScale", "characterNameSize", "gearNameSize", "guildSize",
         "attributesHeaderSize", "attributesBodySize", "reputationCurrencyHeaderSize", "slotLabelSize" }) do
         if self.controls[key] then self.controls[key]:SetValue(SliderTable(key)[key] or SliderDefault(key)) end
     end
-    for _, key in ipairs({ "textColor", "accentColor", "backgroundColor", "borderColor", "attributesHeaderColor", "attributesBodyColor" }) do
+    for _, key in ipairs({ "textColor", "accentColor", "characterSheetBackgroundColor", "attributesBackgroundColor", "borderColor", "attributesHeaderColor", "attributesBodyColor" }) do
         local control, color = self.controls[key], BCS.charDB[key]
         if control and control.swatch and color then control.swatch:SetColorTexture(color[1], color[2], color[3], color[4] or 1) end
     end
@@ -559,21 +450,21 @@ function M:Refresh()
 end
 
 function M:Toggle()
-    if not self.frame then return end
-    local opening = not self.frame:IsShown()
+    if not self.panelReady then return end
+    local opening = not self.window:IsShown()
     if opening then
         local sidePanels = BCS.modules.SidePanels
         if sidePanels and sidePanels.HideAll then sidePanels:HideAll() end
         self:Refresh()
-        self:ShowAnimated()
+        self:Open()
     else
-        self:HideAnimated()
+        self:Close()
     end
 end
 
 function M:Initialize()
     BCS:WhenCharacterUIReady(function()
         self:CreatePanel()
-        BCS.ToggleSettings = function() self:Toggle() end
+        if self.panelReady then BCS.ToggleSettings = function() self:Toggle() end end
     end)
 end

@@ -23,6 +23,14 @@ local UPGRADE_TRACK_COLORS = {
     myth = "ffb58bc8",       -- Wisteria
 }
 
+-- Some leg armor kits expose their stats on equipped-item tooltips without a
+-- standard named enchant line. Map their equipped enchant-effect IDs back to
+-- the source items so WoW can provide the localized name.
+local ENCHANT_NAME_FALLBACK_ITEMS = {
+    [8158] = 244640, -- Forest Hunter's Armor Kit, rank 1
+    [8159] = 244641, -- Forest Hunter's Armor Kit, rank 2
+}
+
 local function CleanUpgradeTrack(track)
     if not track then return end
     -- The tooltip commonly supplies "Upgrade Level: Veteran". Keep only the
@@ -64,6 +72,13 @@ end
 
 local function ItemEnchantID(link)
     return tonumber(link and link:match("item:%d+:(%d*)")) or 0
+end
+
+local function FallbackEnchantName(link)
+    local itemID = ENCHANT_NAME_FALLBACK_ITEMS[ItemEnchantID(link)]
+    if not itemID then return end
+    local name = C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)
+    return name or (C_Item.GetItemInfo and C_Item.GetItemInfo(itemID)) or "Forest Hunter's Armor Kit"
 end
 
 local function GetSocketStatus(link, slotID)
@@ -165,11 +180,48 @@ function M:CreateLabels(button, rightSide)
     return details
 end
 
+local function PositionGearLabels(button, details, rightSide)
+    details.name:ClearAllPoints()
+    if rightSide then
+        details.level:ClearAllPoints()
+        details.gem:ClearAllPoints()
+        details.enchant:ClearAllPoints()
+        details.name:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", 2, 3)
+        details.level:SetPoint("TOPRIGHT", button, "TOPLEFT", -3, 0)
+        details.gem:SetPoint("TOPRIGHT", details.level, "BOTTOMRIGHT", 0, -3)
+        details.enchant:SetPoint("TOPRIGHT", details.gem, "BOTTOMRIGHT", 0, -3)
+    else
+        details.level:ClearAllPoints()
+        details.gem:ClearAllPoints()
+        details.enchant:ClearAllPoints()
+        details.name:SetPoint("BOTTOMLEFT", button, "TOPLEFT", -1, 3)
+        details.level:SetPoint("TOPLEFT", button, "TOPRIGHT", 3, 0)
+        local gemIconClearance = BCS.charDB.gemIconEnabled and 3 or 0
+        details.gem:SetPoint("TOPLEFT", details.level, "BOTTOMLEFT", gemIconClearance, -3)
+        details.enchant:SetPoint("TOPLEFT", details.gem, "BOTTOMLEFT", -gemIconClearance, -3)
+    end
+end
+
+local function PositionEnchant(details, rightSide, enchantText)
+    local hasGemLine = details.gem:GetText() and details.gem:GetText() ~= ""
+    local previous = hasGemLine and details.gem or details.level
+    local gemIconClearance = hasGemLine and BCS.charDB.gemIconEnabled and 3 or 0
+    local hasInlineIcon = enchantText and (enchantText:find("|T", 1, true) or enchantText:find("|A", 1, true))
+    local enchantIconClearance = hasInlineIcon and 3 or 0
+    details.enchant:ClearAllPoints()
+    if rightSide then
+        details.enchant:SetPoint("TOPRIGHT", previous, "BOTTOMRIGHT", 0, -3)
+    else
+        details.enchant:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", enchantIconClearance - gemIconClearance, -3)
+    end
+end
+
 function M:Update(button, slotID, rightSide)
     if not button then return end
     if BCS.modules.Theme then BCS.modules.Theme:SkinSlot(button, slotID) end
     HideForeignGearDetails(button)
     local details = self:CreateLabels(button, rightSide)
+    PositionGearLabels(button, details, rightSide)
     local shown = BCS.charDB.equipmentLabelsEnabled
     for _, label in pairs(details) do label:SetShown(shown) end
     if not shown then return end
@@ -183,6 +235,7 @@ function M:Update(button, slotID, rightSide)
     local itemName, _, quality, baseLevel, _, _, _, _, equipLocation = C_Item.GetItemInfo(link)
     local level = C_Item.GetDetailedItemLevelInfo(link) or baseLevel
     local enchant, upgrade = ScanTooltip(slotID)
+    enchant = enchant or FallbackEnchantName(link)
     enchant = CleanEnchantName(enchant)
     local currentDurability, maximumDurability = GetInventoryItemDurability(slotID)
     local durability
@@ -195,6 +248,7 @@ function M:Update(button, slotID, rightSide)
     BCS.modules.Fonts:Apply(details.gem, "slotLabelSize")
     BCS.modules.Fonts:Apply(details.enchant, "slotLabelSize")
     details.name:SetText(BCS.charDB.gearItemNameEnabled and itemName and ("|c" .. color .. itemName .. "|r") or "")
+    details.name:SetWidth(235)
     local levelParts = {}
     if durability then levelParts[#levelParts + 1] = durability end
     local upgradeCurrent, upgradeMaximum
@@ -207,6 +261,7 @@ function M:Update(button, slotID, rightSide)
     end
     if level then levelParts[#levelParts + 1] = tostring(level) end
     details.level:SetText(table.concat(levelParts, "  "))
+    details.level:SetWidth(235)
 
     local socketCount, filledSockets = GetSocketStatus(link, slotID)
     if (BCS.charDB.gemNameEnabled or BCS.charDB.gemIconEnabled) and socketCount > 0 then
@@ -215,7 +270,7 @@ function M:Update(button, slotID, rightSide)
             details.gem:SetTextColor(1, 0.15, 0.15, 1)
             details.gem:SetText(GemDisplay(link, socketCount))
         else
-            details.gem:SetTextColor(0.16, 0.98, 0.71, 1)
+            details.gem:SetTextColor(1, 0.722, 0.424, 1)
             details.gem:SetText(GemDisplay(link, socketCount))
         end
     else
@@ -231,6 +286,7 @@ function M:Update(button, slotID, rightSide)
     else
         details.enchant:SetText("")
     end
+    PositionEnchant(details, rightSide, details.enchant:GetText())
 end
 
 function M:Refresh()

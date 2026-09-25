@@ -16,8 +16,12 @@ local function HideTextures(frame)
 end
 
 local function Colors()
-    local bg, border = BCS.charDB.backgroundColor, BCS.charDB.borderColor
-    return bg[1], bg[2], bg[3], BCS.charDB.backgroundOpacity * (bg[4] or 1),
+    local border = BCS.charDB.borderColor
+    if (ReputationFrame and ReputationFrame:IsShown()) or (TokenFrame and TokenFrame:IsShown()) then
+        return 0, 0, 0, 1, border[1], border[2], border[3], BCS.charDB.borderOpacity * (border[4] or 1)
+    end
+    local bg = BCS.charDB.characterSheetBackgroundColor
+    return bg[1], bg[2], bg[3], bg[4] or 1,
         border[1], border[2], border[3], BCS.charDB.borderOpacity * (border[4] or 1)
 end
 
@@ -61,13 +65,15 @@ function M:CreateSkin()
     if self.skin then return end
     local skin = CreateFrame("Frame", "BoojieCharacterSheetSkin", CharacterFrame, "BackdropTemplate")
     skin:SetAllPoints(CharacterFrame); skin:SetFrameLevel(0)
-    skin:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+    -- A white base is required here: backdrop colors multiply into the texture,
+    -- so dark SharedMedia backgrounds prevent the selected RGB color from showing.
+    skin:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = BCS:FetchMedia("border"), edgeSize = BCS:GetMediaName("border") and 8 or 2 })
     local top = skin:CreateTexture(nil, "ARTWORK"); top:SetHeight(46)
     top:SetPoint("TOPLEFT", 2, -2); top:SetPoint("TOPRIGHT", -2, -2)
-    top:SetColorTexture(0.12, 0.045, 0.09, 0.98); skin.top = top
+    top:SetColorTexture(0, 0, 0, 1); skin.top = top
     local accent = skin:CreateTexture(nil, "ARTWORK"); accent:SetHeight(1)
     accent:SetPoint("TOPLEFT", 6, -46); accent:SetPoint("TOPRIGHT", -6, -46)
-    accent:SetColorTexture(1, 0.553, 0.631, 0.8)
+    skin.accent = accent
     self.skin = skin
 end
 
@@ -121,41 +127,65 @@ end
 
 function M:SkinTab(tab)
     if not tab or tab._bcsSkin then return end
-    local bg = CreateFrame("Frame", nil, tab, "BackdropTemplate")
-    bg:SetAllPoints(); bg:SetFrameLevel(math.max(0, tab:GetFrameLevel() - 1))
-    bg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    bg:SetBackdropColor(0.025, 0.025, 0.035, 0.96); bg:SetBackdropBorderColor(0.28, 0.18, 0.28, 1)
+    -- Keep the opaque skin outside the tab's child hierarchy. A child frame can
+    -- render above regions owned by its parent after Blizzard rebuilds the tabs.
+    local bg = CreateFrame("Frame", nil, tab:GetParent(), "BackdropTemplate")
+    bg:SetAllPoints(tab); bg:SetFrameStrata(tab:GetFrameStrata()); bg:SetFrameLevel(math.max(0, tab:GetFrameLevel() - 1))
+    bg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" })
+    bg:SetBackdropColor(0.025, 0.025, 0.035, 0.96)
+    local borders = {
+        PixelLine(bg, "BOTTOMLEFT", "BOTTOMLEFT", "BOTTOMRIGHT", "BOTTOMRIGHT"),
+        PixelLine(bg, "TOPLEFT", "TOPLEFT", "BOTTOMLEFT", "BOTTOMLEFT"),
+        PixelLine(bg, "TOPRIGHT", "TOPRIGHT", "BOTTOMRIGHT", "BOTTOMRIGHT"),
+    }
+    if PixelUtil then
+        PixelUtil.SetHeight(borders[1], 1); PixelUtil.SetWidth(borders[2], 1); PixelUtil.SetWidth(borders[3], 1)
+    else
+        borders[1]:SetHeight(1); borders[2]:SetWidth(1); borders[3]:SetWidth(1)
+    end
+    local r, g, b = BCS:GetAccentColor()
+    for _, border in ipairs(borders) do border:SetColorTexture(r, g, b, 0.35) end
+    bg.borders = borders
     tab._bcsSkin = bg
 end
 
-function M:SetTabStyle(tab, enabled)
+function M:SetTabStyle(tab)
     if not tab then return end
     self:SkinTab(tab)
-    tab._bcsSkin:SetShown(enabled)
+    tab._bcsSkin:Show()
     for _, region in ipairs({ tab:GetRegions() }) do
-        if region and region.GetObjectType and region:GetObjectType() == "Texture" then region:SetAlpha(enabled and 0 or 1) end
+        if region and region.GetObjectType and region:GetObjectType() == "Texture" then region:SetAlpha(0) end
     end
 end
 
-function M:SkinCloseButton()
-    local button = CharacterFrameCloseButton
-    if not button or button._bcsSkinned then return end
-    for _, region in ipairs({ button:GetRegions() }) do
-        if region and region.GetObjectType and region:GetObjectType() == "Texture" then region:SetAlpha(0) end
+function M:SkinCloseButton(button)
+    if not button then return end
+    if not button._bcsSkinned then
+        button:SetSize(24, 24)
+        for _, region in ipairs({ button:GetRegions() }) do
+            if region and region.GetObjectType and region:GetObjectType() == "Texture" then region:SetAlpha(0) end
+        end
+        local bg = CreateFrame("Frame", nil, button, "BackdropTemplate")
+        bg:SetAllPoints(); bg:SetFrameLevel(math.max(0, button:GetFrameLevel() - 1))
+        bg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+        bg:SetBackdropColor(0.03, 0.03, 0.04, 1)
+        local x = button:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        x:SetPoint("CENTER", 0, 0); x:SetText("X")
+        x:SetFont(BCS:GetTypography("font"), 19, BCS.charDB.fontOutline or "OUTLINE")
+        button._bcsCloseBackground, button._bcsCloseText = bg, x
+        button._bcsSkinned = true
     end
-    local bg = CreateFrame("Frame", nil, button, "BackdropTemplate")
-    bg:SetAllPoints(); bg:SetFrameLevel(math.max(0, button:GetFrameLevel() - 1))
-    bg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
-    bg:SetBackdropColor(0.03, 0.03, 0.04, 1); bg:SetBackdropBorderColor(1, 0.553, 0.631, 0.8)
-    local x = button:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    x:SetPoint("CENTER", 0, 1); x:SetText("×"); x:SetTextColor(1, 0.553, 0.631)
-    button._bcsSkinned = true
+    local r, g, b = BCS:GetAccentColor()
+    button._bcsCloseBackground:SetBackdropBorderColor(r, g, b, 0.8)
+    button._bcsCloseText:SetTextColor(r, g, b)
 end
 
 function M:Refresh()
     if not CharacterFrame then return end
     self:CreateSkin()
+    self.skin:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = BCS:FetchMedia("border"), edgeSize = BCS:GetMediaName("border") and 8 or 2 })
     HideTextures(CharacterFrame); HideTextures(CharacterFrameInset); HideTextures(CharacterFrameInsetRight)
+    HideTextures(PaperDollSidebarTabs)
     HideTextures(CharacterModelScene)
     if CharacterModelScene and CharacterModelScene.backdrop then CharacterModelScene.backdrop:Hide() end
     if CharacterFrameBg then CharacterFrameBg:SetAlpha(0) end
@@ -166,12 +196,23 @@ function M:Refresh()
     end
     local br, bg, bb, ba, rr, rg, rb, ra = Colors()
     self.skin:SetBackdropColor(br, bg, bb, ba); self.skin:SetBackdropBorderColor(rr, rg, rb, ra)
-    local accent = BCS.charDB.accentColor
-    self.skin.top:SetColorTexture(accent[1] * 0.18, accent[2] * 0.08, accent[3] * 0.15, 0.98)
+    self.skin.top:SetColorTexture(0, 0, 0, 1)
+    local accentR, accentG, accentB = BCS:GetAccentColor()
+    self.skin.accent:SetColorTexture(accentR, accentG, accentB, 0.8)
     for name, slotID in pairs(BCS.modules.EquipmentSlots and BCS.modules.EquipmentSlots.slots or {}) do self:SkinSlot(_G[name], slotID) end
     for index = 1, 3 do self:SkinSidebarIcon(_G["PaperDollSidebarTab" .. index]) end
     local characterModule = BCS.modules.CharacterFrame
     if characterModule then self:SkinSidebarIcon(characterModule.transmogButton) end
-    for index = 1, 5 do self:SetTabStyle(_G["CharacterFrameTab" .. index], BCS.charDB.restrainedTabsEnabled) end
-    self:SkinCloseButton()
+    for index = 1, 3 do
+        local tab = _G["CharacterFrameTab" .. index]
+        self:SetTabStyle(tab)
+        if tab and tab._bcsSkin and tab._bcsSkin.borders then
+            for _, border in ipairs(tab._bcsSkin.borders) do border:SetColorTexture(accentR, accentG, accentB, 0.35) end
+        end
+    end
+    CharacterFrameCloseButton:ClearAllPoints()
+    CharacterFrameCloseButton:SetPoint("TOPRIGHT", CharacterFrame, "TOPRIGHT", -4, -4)
+    self:SkinCloseButton(CharacterFrameCloseButton)
+    local settings = BCS.modules.Settings
+    if settings and settings.window and settings.window.closeButton then self:SkinCloseButton(settings.window.closeButton) end
 end

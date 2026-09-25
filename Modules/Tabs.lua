@@ -2,7 +2,6 @@ local _, BCS = ...
 local M = {}
 BCS:RegisterModule("Tabs", M)
 
-local TAB_LABELS = { CHARACTER, REPUTATION, CURRENCY }
 local TAB_MINIMUM_WIDTHS = { 104, 116, 100 }
 
 local function ApplyTabFont(text)
@@ -16,8 +15,6 @@ function M:EnforceWidths()
     for index = 1, 3 do
         local tab = _G["CharacterFrameTab" .. index]
         if tab and tab.Text then
-            local label = TAB_LABELS[index] or tab.Text:GetText()
-            if label and tab.Text:GetText() ~= label then tab.Text:SetText(label) end
             ApplyTabFont(tab.Text)
             local textWidth = tab.Text.GetUnboundedStringWidth and tab.Text:GetUnboundedStringWidth() or tab.Text:GetStringWidth()
             local width = math.max(TAB_MINIMUM_WIDTHS[index], math.ceil((textWidth or 0) + 28))
@@ -40,13 +37,11 @@ end
 
 function M:Refresh()
     local selected = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(CharacterFrame)
-    for index = 1, 5 do
+    for index = 1, 3 do
         local tab = _G["CharacterFrameTab" .. index]
         if tab and tab.Text then
-            BCS.modules.Theme:SetTabStyle(tab, BCS.charDB.restrainedTabsEnabled); BCS.modules.Fonts:Apply(tab.Text, "miscTextSize")
-            if BCS.charDB.restrainedTabsEnabled then
-                tab.Text:SetTextColor(index == selected and 1 or 0.82, index == selected and 0.553 or 0.82, index == selected and 0.631 or 0.82)
-            else tab.Text:SetTextColor(1, 0.82, 0) end
+            BCS.modules.Theme:SetTabStyle(tab); BCS.modules.Fonts:Apply(tab.Text, "miscTextSize")
+            tab.Text:SetTextColor(index == selected and 1 or 0.82, index == selected and 0.553 or 0.82, index == selected and 0.631 or 0.82)
             if not tab._bcsRefreshHook then
                 tab:HookScript("OnClick", function()
                     local character = BCS.modules.CharacterFrame

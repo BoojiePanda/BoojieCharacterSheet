@@ -2,6 +2,28 @@ local _, BCS = ...
 local M = {}
 BCS:RegisterModule("ReputationCurrency", M)
 
+local function ElvUIStatusBarTexture()
+    if not BCS.charDB.useElvUIReputationTexture then return nil end
+    local elvUI = _G.ElvUI
+    local engine = type(elvUI) == "table" and elvUI[1]
+    return engine and engine.media and engine.media.normTex or nil
+end
+
+local function StyleReputationBar(content)
+    local bar = content and content.ReputationBar
+    if not bar or not bar.SetStatusBarTexture then return end
+    if not bar._bcsBlizzardTexture then
+        local fill = bar:GetStatusBarTexture()
+        bar._bcsBlizzardTexture = fill and fill:GetTexture() or "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar"
+        bar._bcsLeftTextureAlpha = bar.LeftTexture and bar.LeftTexture:GetAlpha() or 1
+        bar._bcsRightTextureAlpha = bar.RightTexture and bar.RightTexture:GetAlpha() or 1
+    end
+    local texture = ElvUIStatusBarTexture()
+    bar:SetStatusBarTexture(texture or bar._bcsBlizzardTexture)
+    if bar.LeftTexture then bar.LeftTexture:SetAlpha(texture and 0 or bar._bcsLeftTextureAlpha) end
+    if bar.RightTexture then bar.RightTexture:SetAlpha(texture and 0 or bar._bcsRightTextureAlpha) end
+end
+
 local function StyleRow(row)
     local data = row.GetElementData and row:GetElementData() or row.elementData
     local content = row.Content or row
@@ -9,6 +31,7 @@ local function StyleRow(row)
     local collapseAtlas = row.Right
     local isHeader = data and (data.isHeader or data.isCategory or data.isExpansion)
     isHeader = isHeader or toggle or collapseAtlas
+    StyleReputationBar(content)
     local fontStrings = row._bcsFontStrings
     if not fontStrings then
         fontStrings = {}
@@ -135,8 +158,8 @@ local function RaiseDropdown(frame)
         header:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
         frame._bcsFilterHeader = header
     end
-    local bg, border = BCS.charDB.backgroundColor, BCS.charDB.borderColor
-    frame._bcsFilterHeader:SetBackdropColor(bg[1], bg[2], bg[3], 0.98)
+    local border = BCS.charDB.borderColor
+    frame._bcsFilterHeader:SetBackdropColor(0, 0, 0, 1)
     frame._bcsFilterHeader:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1)
     if not dropdown._bcsRaiseHook then
         dropdown:HookScript("OnMouseDown", function()

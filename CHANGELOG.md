@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+- Rebuilt Settings initialization so a failed control cannot leave the panel half-created or cause later refresh errors.
+- Restored proper font-dropdown arrows and removed the stray `Aa` from font controls.
+- Made the retained three-tab styling permanent, removed only the top tab borders, and fixed tab labels disappearing after reloads and refreshes.
+- Added safe first-install defaults based on Silverravyn's configuration while keeping Blizzard's built-in Friz Quadrata as the guaranteed font fallback.
+- Added live SharedMedia discovery with safe Blizzard fallbacks when an optional media provider is unavailable.
+- Added a clear chat warning when ElvUI or WindTools is also configured to skin the Character Sheet.
+- Added an option to use ElvUI's General texture on Reputation progress bars, with Blizzard's texture retained when ElvUI is unavailable.
+- Added the new BCS icon, a LibDataBroker and LibDBIcon minimap launcher, WindTools compatibility, and a complete entry under `Settings > AddOns`.
+- Matched the Settings window height to the character sheet and added persistent mouse-wheel scaling from 75% to 100% without moving its fixed anchor.
+- Added the TOC version to the Settings title and made ElvUI's color-picker Default button restore Boojie defaults correctly.
+- Expanded the Accent color setting across the addon's interface chrome while preserving the branded title and icon colors.
+- Preserved every existing character's saved configuration while applying the new defaults only to fresh installations.
+
 ## 0.5.29
 
 - Reorganized settings into dedicated Character Sheet, Attributes, and Reputation and Currency pages with compact multi-column controls.

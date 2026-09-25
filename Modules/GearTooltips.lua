@@ -14,7 +14,7 @@ function M:Skin(tooltip)
         background:SetPoint("BOTTOMRIGHT", tooltip, "BOTTOMRIGHT", -2, 2)
         tooltip._bcsOpaqueBackground = background
     end
-    local bg, border = BCS.charDB.backgroundColor, BCS.charDB.borderColor
+    local bg, border = BCS.charDB.characterSheetBackgroundColor, BCS.charDB.borderColor
     tooltip._bcsOpaqueBackground:SetColorTexture(bg[1], bg[2], bg[3], 1)
     tooltip._bcsOpaqueBackground:Show()
     if tooltip.SetBackdrop then
@@ -34,7 +34,8 @@ function M:Process(tooltip)
     tooltip._bcsPreviousScale = tooltip._bcsPreviousScale or tooltip:GetScale()
     tooltip:SetScale((BCS.charDB.gearTooltipScale or 100) / 100)
     tooltip:AddLine(" ")
-    tooltip:AddDoubleLine("Gear slot", tostring(slotID), 1, 0.553, 0.631, 1, 1, 1)
+    local r, g, b = BCS:GetAccentColor()
+    tooltip:AddDoubleLine("Gear slot", tostring(slotID), r, g, b, 1, 1, 1)
     tooltip._bcsSlotAdded = true
     tooltip._bcsAddingSlot = false
 end
